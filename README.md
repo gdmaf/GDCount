@@ -12,18 +12,24 @@ GDCount is an open-source desktop tool for automated grain segmentation and size
 
 The tool provides a graphical user interface that requires no programming knowledge, making it accessible to researchers and engineers in materials science and related fields.
 
+> ⚠️ **Model scope:** The pre-trained U-Net model (`seg_model.keras`) was trained primarily for SEM images of **equiaxial (rounded/spherical) grains and particles**. Performance on elongated morphologies (needles, plates, rods) may be limited. New morphologies will be adressed in future versions of the software.
+
 ---
 
 ## Features
 
 - Automated grain segmentation using U-Net + SAM pipeline
 - Batch processing of multiple SEM images
-- Configurable segmentation parameters (minimum grain distance and area)
+- Interactive calibration tool — measure scale, grain distance and minimum area directly on the image
 - Pixel-to-micrometer scale calibration
 - Equivalent diameter calculation (assuming circular grain cross-section)
-- Statistical summary (mean and standard deviation of area and diameter)
-- CSV output with decimal comma and semicolon separator (Brazilian Excel standard)
+- Statistical summary (mean and standard deviation of area and diameter) displayed after processing
+- Post-segmentation filters: maximum grain area, maximum grain length, minimum and maximum aspect ratio
+- Automatic pore rejection based on centroid intensity
+- Overlay image with red crosses marking each counted grain centroid
+- CSV output configurable for EN (`.` decimal, `,` separator) or BR (`,` decimal, `;` separator)
 - Binary mask output (`.tif`) for each processed image
+- Bilingual interface: English and Portuguese
 - Portable Windows executable (`.exe`) — no Python installation required
 
 ---
@@ -33,7 +39,7 @@ The tool provides a graphical user interface that requires no programming knowle
 ### Running from source
 - Python 3.10
 - Dependencies listed in `requirements.txt`
-- Model files:
+- Model files (not included in repository due to size):
   - `seg_model.keras` — pre-trained U-Net model
   - `sam_vit_b_01ec64.pth` — SAM ViT-B checkpoint ([download from Meta AI](https://github.com/facebookresearch/segment-anything))
 
@@ -67,21 +73,28 @@ Download the latest release from the [Releases](https://github.com/gdmaf/GDCount
 ## Usage
 
 1. Launch the application (`GDCount.exe` or `python app_contagem.py`)
-2. Click **"Adicionar imagens"** to select one or more SEM images (`.jpg`, `.png`, `.tif`)
+2. Click **"Add images"** to select one or more SEM images (`.jpg`, `.png`, `.tif`)
 3. Optionally set an output folder
-4. Configure segmentation parameters (see section below for how to determine them):
-   - **dbs_max_dist** — minimum distance between grain centers (pixels)
-   - **min_area** — minimum grain area to be counted (px²)
-   - **Pixels per µm** — scale calibration for unit conversion (leave blank for pixel-only output)
+4. Configure segmentation parameters manually or use the **📐 Calibrate from image** tool (recommended)
 5. Pre-process the image if necessary (see tips below)
-6. Click **"Iniciar Contagem"** to start processing
-7. Results are displayed in the interface and saved to the output folder
+6. Click **"Start Count"** to start processing
+7. A progress window opens automatically showing the log and results
+
+### Calibration tool
+
+Click **"📐 Calibrate from image"** to open the interactive calibration wizard:
+
+- **Step 1 — Scale:** draw a line over the image scale bar and enter the real length in µm
+- **Step 2 — dbs_max_dist:** click on two neighboring grain centers to measure the minimum distance
+- **Step 3 — min_area:** draw a free outline around the smallest grain to measure its area
+
+Use **scroll** to zoom in/out and **right-click drag** to pan. Values are filled automatically after calibration and can still be edited manually.
 
 ### Image pre-processing tips
 
-- If your image has **low contrast or sharpness**, enhance it before processing to improve the distinction between grain boundaries and grain interiors
+- If your image has **low contrast or sharpness**, enhance it before processing
 - If **grain boundaries are brighter than grain interiors**, invert the image colors before processing — otherwise the program may count pores or boundaries as grains. This is especially relevant for particle analysis
-- Image enhancement and color inversion can be performed in [ImageJ/FIJI](https://imagej.net/software/fiji/downloads) before loading the image into GDCount
+- Image enhancement and color inversion can be performed in [ImageJ/FIJI](https://imagej.net/software/fiji/downloads)
 
 ### Output files
 
@@ -89,8 +102,9 @@ For each input image (e.g., `sample01.tif`), the following files are generated:
 
 | File | Description |
 |---|---|
-| `sample01_grain_data.csv` | Per-grain metrics (area, perimeter, equivalent diameter) |
-| `sample01_grain_mask_all.tif` | Binary segmentation mask |
+| `sample01_grain_data.csv` | Per-grain metrics (area, perimeter, equivalent diameter, orientation, etc.) |
+| `sample01_grain_mask_all.tif` | Binary segmentation mask (all SAM detections) |
+| `sample01_grain_overlay.png` | Original image with red crosses at each counted grain centroid |
 
 ---
 
@@ -101,47 +115,38 @@ For each input image (e.g., `sample01.tif`), the following files are generated:
 | `dbs_max_dist` | Minimum distance between grain centroids (px) | 5.0 |
 | `min_area` | Minimum grain area (px²) | 150 |
 | `px_per_um` | Pixels per micrometer for unit conversion | — |
+| `max_area` | Maximum grain area — filters oversized objects (px²) | — |
+| `max_length` | Maximum major axis length — filters elongated outliers (px) | — |
+| `min_aspect_ratio` | Minimum aspect ratio (major/minor axis) — selects elongated grains | — |
+| `max_aspect_ratio` | Maximum aspect ratio — selects rounded grains | — |
+
+> All filter fields are optional. Leave blank for no limit.
 
 ---
 
 ## Determining segmentation parameters from SEM images
 
-The segmentation parameters (`dbs_max_dist`, `min_area`, and `px_per_um`) must be estimated from the SEM image before processing. This can be done using free software such as [ImageJ/FIJI](https://imagej.net/software/fiji/downloads). Below is a brief guide for each parameter.
-
-### Scale calibration — `px_per_um` (pixels per µm)
-
-1. Open the image in ImageJ
-2. Select the **Straight Line** tool and draw a line over the scale bar present in the image
-3. Go to **Analyze → Set Scale**
-4. In "Distance in pixels", ImageJ will show the pixel length of your line
-5. In "Known distance", enter the scale bar length (e.g., `20`)
-6. In "Unit of length", enter `um`
-7. The resulting pixels/unit value is your `px_per_um`
-
-### Minimum grain distance — `dbs_max_dist`
-
-This value should approximate the smallest expected grain diameter in pixels.
-
-1. Open the image in ImageJ
-2. Select the **Straight Line** tool and draw a line across the smallest visible grain
-3. Go to **Analyze → Measure** (or press `M`)
-4. The "Length" value in pixels is a good estimate for `dbs_max_dist`
-
-### Minimum grain area — `min_area`
-
-This value filters out objects smaller than a grain (noise, pores, artifacts).
-
-1. In ImageJ, draw a line across the smallest grain you want to count and measure its length `d` in pixels
-2. Estimate the minimum area as: `min_area ≈ π × (d/2)²`
-3. Use a value slightly below this estimate to avoid discarding small but valid grains
-
-> **Tip:** If pores are being counted as grains, increase `min_area` or enhance image contrast before processing. If grain boundaries are brighter than grain interiors, invert the image colors (**Image → Lookup Tables → Invert LUT** in ImageJ) before processing.
+Parameters can be measured directly using the built-in **Calibration Tool** 
 
 ---
 
-## Exemple of use
+## Example of use
 
-In Github page you can find a SEM exemple so you can use to check how the software works. consider 8.5 as dbs_max_dist, 11 as min_area and 13.8 as Pixels per µm.
+A sample SEM image is available on the [Releases](https://github.com/gdmaf/GDCount/releases) page. Suggested parameters for the example image:
+
+- `dbs_max_dist` = 8.5
+- `min_area` = 11
+- `px_per_um` = 13.8
+
+---
+
+## Known limitations
+
+- The pre-trained U-Net model was optimized for **equiaxial (rounded) grain morphologies**. Results on elongated particles (needles, plates, rods) may be poor.
+- Post-segmentation filters (aspect ratio, max area, max length) can help isolate specific grain populations after detection, but cannot compensate for poor initial segmentation of non-equiaxial grains.
+- For other morphologies, retraining the U-Net with annotated images of your material is recommended.
+
+---
 
 ## Building the executable
 
@@ -152,7 +157,7 @@ pip install pyinstaller pyinstaller-hooks-contrib
 pyinstaller contador_graos.spec --clean --noconfirm
 ```
 
-Copy `seg_model.keras`, `sam_vit_b_01ec64.pth`, and `logo_gdmaf.png` into `dist/ContadorGraos/` after building.
+Copy `seg_model.keras`, `sam_vit_b_01ec64.pth`, `logo_gdmaf.png`, `instagram.png`, `linkedin.png`, and `facebook.png` into `dist/ContadorGraos/` after building.
 
 ---
 
@@ -165,7 +170,7 @@ If you use GDCount in your research, please cite:
   author  = {Freire, L.A. and Menezes, E.A.F.M. and Thomazini, D. and Gelfuso, M.V.},
   title   = {GDCount: Automated grain size characterization tool for SEM images},
   year    = {2025},
-  url     = {https://github.com/YOUR_USERNAME/GDCount},
+  url     = {https://github.com/gdmaf/GDCount},
   license = {MIT}
 }
 ```
