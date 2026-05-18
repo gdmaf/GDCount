@@ -39,14 +39,27 @@ The tool provides a graphical user interface that requires no programming knowle
 ### Running from source
 - Python 3.10
 - Dependencies listed in `requirements.txt`
-- Model files (not included in repository due to size):
+- Model files (not included in repository due to size — see [Downloading the model files](#downloading-the-model-files)):
   - `seg_model.keras` — pre-trained U-Net model
-  - `sam_vit_b_01ec64.pth` — SAM ViT-B checkpoint ([download from Meta AI](https://github.com/facebookresearch/segment-anything))
+  - `sam_vit_b_01ec64.pth` — SAM ViT-B checkpoint
 
 ### Running the executable (Windows)
 - Windows 10 or 11 (64-bit)
 - Minimum 8 GB RAM
 - Microsoft Visual C++ Redistributable 2015–2022 ([download here](https://aka.ms/vs/17/release/vc_redist.x64.exe))
+
+---
+
+## Downloading the model files
+
+The two model files must be downloaded separately and placed in the same folder as the scripts (or alongside `GDCount.exe` for the Windows executable).
+
+| File | Source | Size |
+|------|--------|------|
+| `sam_vit_b_01ec64.pth` | [Meta AI — direct download](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth) | ~375 MB |
+| `seg_model.keras` | [GDCount Releases page](https://github.com/gdmaf/GDCount/releases) | ~90 MB |
+
+> The `seg_model.keras` file is also available from the [segmenteverygrain repository](https://github.com/zsylvester/segmenteverygrain).
 
 ---
 
@@ -62,11 +75,11 @@ pip install torch torchvision torchaudio
 python app_contagem.py
 ```
 
-Place `seg_model.keras` and `sam_vit_b_01ec64.pth` in the same folder as the scripts.
+Download `seg_model.keras` and `sam_vit_b_01ec64.pth` (see [Downloading the model files](#downloading-the-model-files)) and place them in the same folder as the scripts.
 
 ### Windows executable
 
-Download the latest release from the [Releases](https://github.com/gdmaf/GDCount/releases) page, extract the `.zip` file, and run `GDCount.exe`. The model files must be placed in the same folder as the executable.
+Download the latest release from the [Releases](https://github.com/gdmaf/GDCount/releases) page, extract the `.zip` file, and run `GDCount.exe`. Download `seg_model.keras` and `sam_vit_b_01ec64.pth` (see [Downloading the model files](#downloading-the-model-files)) and place them in the same folder as the executable.
 
 ---
 
@@ -132,7 +145,7 @@ Parameters can be measured directly using the built-in **Calibration Tool**
 
 ## Example of use
 
-A sample SEM image is available on the [Releases](https://github.com/gdmaf/GDCount/releases) page. Suggested parameters for the example image:
+A sample SEM image (`MEV teste.jpg`) is included in the repository root. Suggested parameters for this image:
 
 - `dbs_max_dist` = 8.5
 - `min_area` = 11
@@ -145,6 +158,20 @@ A sample SEM image is available on the [Releases](https://github.com/gdmaf/GDCou
 - The pre-trained U-Net model was optimized for **equiaxial (rounded) grain morphologies**. Results on elongated particles (needles, plates, rods) may be poor.
 - Post-segmentation filters (aspect ratio, max area, max length) can help isolate specific grain populations after detection, but cannot compensate for poor initial segmentation of non-equiaxial grains.
 - For other morphologies, retraining the U-Net with annotated images of your material is recommended.
+
+---
+
+## Running the tests
+
+A pytest test suite is included in `test_gdcount.py`. Unit tests run without model files; integration tests are skipped automatically when model files are absent.
+
+```bash
+pip install pytest pandas
+pytest test_gdcount.py -v                       # all tests (integration skipped if no models)
+pytest test_gdcount.py -v -m "not integration"  # unit tests only
+```
+
+Unit tests verify that the module imports correctly, the test image is present, the equivalent diameter formula is accurate, all documented parameters are exposed, and GPU is disabled on import. Integration tests run the full pipeline on the bundled SEM image (`MEV teste.jpg`) and validate CSV output, binary mask, overlay image, filtering behaviour, and unit conversion.
 
 ---
 
